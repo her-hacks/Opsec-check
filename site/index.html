@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Opsec Check: a private scam checker for builders</title>
+<meta name="description" content="Opsec Check is a small open-source AI model that checks suspicious messages for scams and impersonation. It runs on your own device. Nothing you paste leaves your computer.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@112,600;125,800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #17212E;
+    --ink-soft: #4A5566;
+    --paper: #F3F5F8;
+    --white: #FFFFFF;
+    --tint: #2E4F86;
+    --tint-faint: #DCE3EE;
+    --mark: #FFE15A;
+    --alert: #B8322A;
+    --ok: #2F6B4A;
+    --display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+    --body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --measure: 68ch;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font: 400 1.0625rem/1.6 var(--body);
+  }
+  a { color: var(--tint); text-underline-offset: 0.18em; }
+  a:hover { color: var(--ink); }
+  :focus-visible { outline: 3px solid var(--tint); outline-offset: 3px; border-radius: 2px; }
+  .wrap { width: min(1120px, 100% - 2.5rem); margin-inline: auto; }
+  .col { max-width: var(--measure); }
+
+  /* ---------- Top bar ---------- */
+  .bar { display: flex; justify-content: space-between; align-items: center; padding: 1.1rem 0; }
+  .wordmark { font: 800 1.15rem/1 var(--display); font-stretch: 125%; letter-spacing: -0.01em; text-decoration: none; color: var(--ink); }
+  .bar nav a { margin-left: 1.4rem; font-size: 0.95rem; color: var(--ink-soft); text-decoration: none; }
+  .bar nav a:hover { color: var(--ink); text-decoration: underline; }
+
+  /* ---------- Hero, on a security-envelope tint ---------- */
+  .hero {
+    background-color: var(--white);
+    background-image:
+      repeating-linear-gradient(135deg, transparent 0 7px, rgba(46,79,134,0.075) 7px 8px),
+      repeating-linear-gradient(45deg, transparent 0 11px, rgba(46,79,134,0.05) 11px 12px);
+    border-top: 1px solid var(--tint-faint); border-bottom: 1px solid var(--tint-faint);
+  }
+  .hero-grid { display: grid; grid-template-columns: 1fr 1.05fr; gap: 3.5rem; align-items: center; padding: 4.5rem 0 4.75rem; }
+  h1 {
+    font: 800 clamp(2.4rem, 5.2vw, 4rem)/0.98 var(--display); font-stretch: 125%;
+    letter-spacing: -0.025em; margin: 0 0 1.4rem; max-width: 13ch;
+  }
+  .lede { font-size: 1.2rem; line-height: 1.55; color: var(--ink-soft); max-width: 36ch; margin: 0 0 2rem; }
+  .actions { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+  .btn {
+    display: inline-block; padding: 0.85rem 1.3rem; border-radius: 6px; font-weight: 700;
+    text-decoration: none; border: 2px solid var(--ink); font-size: 1rem;
+  }
+  .btn-primary { background: var(--ink); color: var(--white); }
+  .btn-primary:hover { background: var(--tint); border-color: var(--tint); color: var(--white); }
+  .btn-quiet { background: var(--white); color: var(--ink); }
+  .btn-quiet:hover { background: var(--paper); color: var(--ink); }
+
+  /* The inspected message: the one bold moment */
+  .specimen { position: relative; }
+  .dm {
+    background: var(--white); border: 1px solid #CDD5E1; border-radius: 14px;
+    padding: 1.25rem 1.35rem 1.35rem; box-shadow: 0 1px 0 #CDD5E1, 0 18px 40px -24px rgba(23,33,46,0.35);
+  }
+  .dm-head { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 0.8rem; }
+  .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--tint-faint); display: grid; place-items: center; font-weight: 700; color: var(--tint); font-size: 0.9rem; }
+  .who { font-weight: 700; line-height: 1.2; }
+  .who small { display: block; font-weight: 400; color: var(--ink-soft); font-size: 0.82rem; }
+  .dm p { margin: 0; font-size: 1.02rem; line-height: 1.65; }
+  mark {
+    background: linear-gradient(var(--mark), var(--mark)) no-repeat 0 85% / 0% 70%;
+    color: inherit; padding: 0 0.1em; animation: sweep 0.55s cubic-bezier(.4,.1,.2,1) forwards;
+  }
+  mark:nth-of-type(1) { animation-delay: 0.5s; }
+  mark:nth-of-type(2) { animation-delay: 0.95s; }
+  mark:nth-of-type(3) { animation-delay: 1.4s; }
+  mark:nth-of-type(4) { animation-delay: 1.85s; }
+  @keyframes sweep { to { background-size: 100% 70%; } }
+
+  .verdict {
+    margin: -0.5rem 0 0 2.2rem; background: var(--ink); color: var(--white);
+    border-radius: 0 0 14px 14px; padding: 1.35rem 1.35rem 1.2rem; font-size: 0.95rem; line-height: 1.5;
+  }
+  .risk { display: flex; align-items: baseline; gap: 0.6rem; margin-bottom: 0.7rem; }
+  .risk strong { font: 800 1.35rem/1 var(--display); font-stretch: 112%; color: #FF8A7F; }
+  .risk span { color: #AEB8C7; font-size: 0.85rem; }
+  .verdict ul { margin: 0 0 0.8rem; padding-left: 1.1rem; }
+  .verdict li { margin-bottom: 0.2rem; }
+  .verdict h3 { font: 600 0.9rem/1.3 var(--display); font-stretch: 112%; margin: 0 0 0.35rem; color: #AEB8C7; }
+  .caption { margin: 0.9rem 0 0 2.2rem; font-size: 0.82rem; color: var(--ink-soft); }
+
+  /* ---------- Sections ---------- */
+  section { padding: 4.25rem 0; }
+  section + section { border-top: 1px solid var(--tint-faint); }
+  h2 {
+    font: 800 clamp(1.7rem, 3.2vw, 2.3rem)/1.08 var(--display); font-stretch: 125%;
+    letter-spacing: -0.02em; margin: 0 0 1.1rem;
+  }
+  h3 { font: 600 1.15rem/1.3 var(--display); font-stretch: 112%; margin: 2rem 0 0.5rem; }
+  .intro { font-size: 1.12rem; color: var(--ink-soft); margin: 0 0 2rem; }
+
+  /* Install steps: a real sequence, so numbered */
+  .steps { list-style: none; margin: 0; padding: 0; counter-reset: s; max-width: 760px; }
+  .steps > li { counter-increment: s; position: relative; padding: 0 0 2rem 3.4rem; }
+  .steps > li::before {
+    content: counter(s); position: absolute; left: 0; top: -0.1rem; width: 2.2rem; height: 2.2rem;
+    border-radius: 50%; border: 2px solid var(--ink); display: grid; place-items: center;
+    font: 800 1rem/1 var(--display); font-stretch: 112%;
+  }
+  .steps > li:not(:last-child)::after {
+    content: ""; position: absolute; left: calc(1.1rem - 1px); top: 2.4rem; bottom: 0.4rem; width: 2px; background: var(--tint-faint);
+  }
+  .steps h3 { margin-top: 0; }
+  .steps p { margin: 0.25rem 0 0.6rem; }
+
+  .code {
+    position: relative; background: var(--white); border: 1px solid #CDD5E1; border-radius: 8px;
+    padding: 0.8rem 5.2rem 0.8rem 0.95rem; font: 0.88rem/1.55 var(--mono); overflow-x: auto; white-space: pre;
+    margin: 0.4rem 0 0.75rem;
+  }
+  .code.wrapline { white-space: pre-wrap; word-break: break-all; }
+  .code .label { display: block; font-family: var(--body); font-size: 0.78rem; color: var(--ink-soft); margin-bottom: 0.15rem; }
+  .copy {
+    position: absolute; top: 0.55rem; right: 0.55rem; font: 700 0.8rem/1 var(--body);
+    padding: 0.45rem 0.65rem; border-radius: 5px; border: 1px solid #B9C3D2; background: var(--paper); color: var(--ink); cursor: pointer;
+  }
+  .copy:hover { background: var(--tint-faint); }
+  .notice {
+    border-left: 4px solid var(--alert); background: #FBEFED; padding: 0.9rem 1.1rem; border-radius: 0 8px 8px 0;
+    font-size: 0.97rem; margin: 0.6rem 0 0.9rem;
+  }
+  details.prompt { margin-top: 0.4rem; }
+  details.prompt summary { cursor: pointer; font-weight: 700; color: var(--tint); }
+  details.prompt .code { white-space: pre-wrap; font-family: var(--body); font-size: 0.95rem; }
+
+  /* Story */
+  .hubs { font-size: 0.95rem; color: var(--ink-soft); border-left: 3px solid var(--tint-faint); padding-left: 1rem; }
+  .path { list-style: none; padding: 0; margin: 2rem 0 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; max-width: 980px; }
+  .path li { padding: 1rem 1.2rem 0 0; border-top: 3px solid var(--ink); }
+  .path li:last-child { border-top-color: var(--tint); }
+  .path b { display: block; font: 800 1.1rem/1.2 var(--display); font-stretch: 112%; margin-bottom: 0.3rem; }
+  .path span { font-size: 0.95rem; color: var(--ink-soft); display: block; }
+
+  /* Progress log: dated, so a list with dates */
+  .log { list-style: none; padding: 0; margin: 0; max-width: 760px; }
+  .log > li { display: grid; grid-template-columns: 7.5rem 1fr; gap: 1.2rem; padding: 0.9rem 0; border-bottom: 1px solid var(--tint-faint); }
+  .log time { font-weight: 700; }
+  .log ul { margin: 0; padding-left: 1.1rem; }
+  .log ul li { margin-bottom: 0.45rem; }
+  .log ul li:last-child { margin-bottom: 0; }
+  .log .next time { color: var(--ink-soft); font-weight: 400; }
+
+  /* Quotes (hidden until real ones exist) */
+  .quotes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.25rem; }
+  .quotes figure { margin: 0; background: var(--white); border-left: 4px solid var(--mark); padding: 1.1rem 1.2rem; }
+  .quotes blockquote { margin: 0 0 0.6rem; font-size: 1.05rem; }
+  .quotes figcaption { font-size: 0.88rem; color: var(--ink-soft); }
+
+  .facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem 3rem; max-width: 900px; }
+  .facts h3 { margin-top: 1.2rem; }
+  .facts p { margin: 0; color: var(--ink-soft); }
+
+  .feedback { background: var(--ink); color: var(--white); }
+  .feedback h2 { color: var(--white); }
+  .feedback p { color: #C9D1DD; }
+  .feedback .btn-primary { background: var(--mark); color: var(--ink); border-color: var(--mark); }
+  .feedback .btn-primary:hover { background: var(--white); border-color: var(--white); }
+
+  footer { padding: 2rem 0 3rem; font-size: 0.9rem; color: var(--ink-soft); }
+  footer p { margin: 0.2rem 0; }
+
+  @media (max-width: 860px) {
+    .hero-grid { grid-template-columns: 1fr; gap: 2.5rem; padding: 3rem 0; }
+    .verdict, .caption { margin-left: 1.2rem; }
+    .path { grid-template-columns: 1fr 1fr; row-gap: 1.5rem; }
+    .facts { grid-template-columns: 1fr; }
+    .bar nav { display: none; }
+  }
+  @media (max-width: 520px) {
+    .path { grid-template-columns: 1fr; }
+    .log > li { grid-template-columns: 1fr; gap: 0.15rem; }
+    .steps > li { padding-left: 2.9rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    mark { animation: none; background-size: 100% 70%; }
+  }
+</style>
+</head>
+<body>
+
+<header class="wrap bar">
+  <a class="wordmark" href="#">Opsec Check</a>
+  <nav aria-label="Page sections">
+    <a href="#try">Try it</a>
+    <a href="#story">Story</a>
+    <a href="#progress">Progress</a>
+    <a href="#feedback">Give feedback</a>
+  </nav>
+</header>
+
+<div class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <h1>Got a message that feels off? Check it privately.</h1>
+      <p class="lede">Opsec Check is a small, open-source AI model that spots scams and impersonation in messages, job offers and links. It runs on your own computer. Nothing you paste leaves your device.</p>
+      <div class="actions">
+        <a class="btn btn-primary" href="#try">Try it on your computer</a>
+        <a class="btn btn-quiet" href="check.html">Try the experimental browser version</a>
+      </div>
+    </div>
+
+    <div class="specimen" aria-label="Example of a suspicious message and the Opsec Check result">
+      <div class="dm">
+        <div class="dm-head">
+          <div class="avatar" aria-hidden="true">D</div>
+          <div class="who">Dana, Talent Partner<small>Direct message</small></div>
+        </div>
+        <p>Hi! Loved your GitHub, we'd like to fast-track you for a paid role. <mark>Before Friday's interview, install our assessment app</mark> from nimbus-assess[.]app and run setup. It needs <mark>access to your wallet</mark> to verify your on-chain experience. <mark>Please complete within 2 hours</mark> or the slot goes to the next candidate. <mark>Keep this between us</mark> for now.</p>
+      </div>
+      <div class="verdict" role="note">
+        <div class="risk"><strong>RISK: High</strong><span>Opsec Check</span></div>
+        <h3>Red flags</h3>
+        <ul>
+          <li>Asks you to install software before an interview</li>
+          <li>Wants wallet access, which no real assessment needs</li>
+          <li>Pressure: a 2-hour deadline and a request for secrecy</li>
+        </ul>
+        <h3>What to do</h3>
+        <ul>
+          <li>Don't download or run anything</li>
+          <li>Check the company and recruiter through an official channel you already use</li>
+          <li>Report it to your hub moderators</li>
+        </ul>
+      </div>
+      <p class="caption">An illustrative example message. Opsec Check's real replies follow this format.</p>
+    </div>
+  </div>
+</div>
+
+<main>
+  <section id="try">
+    <div class="wrap">
+      <div class="col">
+        <h2>Try it on your computer</h2>
+        <p class="intro">Download one file, check it's genuine and run it. It works on Mac, Windows and Linux, and keeps working offline. Allow about 15 minutes, most of it for the download. There's also an <a href="check.html">experimental browser version</a> with no install, which doesn't yet work on every laptop.</p>
+      </div>
+
+      <ol class="steps">
+        <li>
+          <h3>Download the model</h3>
+          <p>One 2.9 GB file, from Mozilla.ai's official Hugging Face page. It's Qwen3.5-2B, an open model, packaged with Mozilla.ai's llamafile.</p>
+          <p><a class="btn btn-quiet" href="https://huggingface.co/mozilla-ai/llamafile_0.10/resolve/main/Qwen3.5-2B-Q8_0.llamafile">Download Qwen3.5-2B-Q8_0.llamafile</a></p>
+        </li>
+
+        <li>
+          <h3>Check it's the genuine file</h3>
+          <p>We'd ask the same of any download. Run the command for your computer, then compare the result with the checksum below. If it doesn't match exactly, delete the file and don't run it.</p>
+          <div class="code wrapline"><span class="label">Expected checksum (SHA256)</span><span data-copy>e4ac37318fffd222d802373a5e0c2ec7f78aa3af3744f01eec75a3750e130386</span><button class="copy" type="button">Copy</button></div>
+          <div class="code"><span class="label">Mac (in Terminal)</span><span data-copy>shasum -a 256 ~/Downloads/Qwen3.5-2B-Q8_0.llamafile</span><button class="copy" type="button">Copy</button></div>
+          <div class="code"><span class="label">Windows (in Command Prompt, after step 3's rename)</span><span data-copy>certutil -hashfile Qwen3.5-2B-Q8_0.llamafile.exe SHA256</span><button class="copy" type="button">Copy</button></div>
+          <div class="notice"><strong>About the "Suspicious" label on Hugging Face.</strong> 1 of 57 antivirus engines flags this file. Microsoft Defender, Kaspersky, Sophos, McAfee, Malwarebytes and Bitdefender find nothing. Llamafiles are unusual single-file programs that some pattern-based scanners flag. <a href="https://www.virustotal.com/gui/file/e4ac37318fffd222d802373a5e0c2ec7f78aa3af3744f01eec75a3750e130386/detection">Read the full VirusTotal report</a>.</div>
+        </li>
+
+        <li>
+          <h3>Run it</h3>
+          <p><strong>Mac:</strong> open Terminal, paste this and press Enter.</p>
+          <div class="code"><span data-copy>cd ~/Downloads &amp;&amp; chmod +x Qwen3.5-2B-Q8_0.llamafile &amp;&amp; ./Qwen3.5-2B-Q8_0.llamafile</span><button class="copy" type="button">Copy</button></div>
+          <p>If macOS blocks it, go to System Settings, then Privacy &amp; Security, and choose Allow Anyway. Then press the Up arrow in Terminal and Enter to run it again.</p>
+          <p><strong>Windows:</strong> rename the file so it ends in <code>.exe</code>, then double-click it.</p>
+          <p>Then open <a href="http://localhost:8080">http://localhost:8080</a> in your browser. That's the chat, running on your own computer. To stop it, press Ctrl-C in the Terminal window.</p>
+        </li>
+
+        <li>
+          <h3>Add the Opsec Check instructions</h3>
+          <p>In the chat's Settings, paste this into the System Message field and save. Then start a new chat.</p>
+          <details class="prompt">
+            <summary>Show the system message</summary>
+            <div class="code"><span data-copy id="system-message">You are Opsec Check, a security assistant for independent builders and community organisers. You run entirely on the user's own device; nothing they paste leaves their computer.
+
+The user will paste a message, job offer, DM, email or link they received. Assess it for scams, impersonation and security risks. Common threats in this community include:
+- Fake job interviews or "take-home tests" that ask you to download or run software
+- Impersonators posing as known community members, funders, event organisers or platform staff
+- Links asking you to "connect", "verify" or "sign in" to an account or wallet
+- Unexpected meeting invites from someone you know or used to know, whose account may have been hacked
+- Requests before or during a call to download or "update" Zoom, Teams or other meeting software from a link they send
+- Urgent requests for money, codes, passwords or recovery phrases
+
+Reply in this format:
+RISK: Low / Medium / High
+RED FLAGS: short bullet points quoting the suspicious parts
+WHAT TO DO: 2-4 concrete steps (e.g. verify through an official channel you already use, don't download anything, report to community moderators)
+
+Be plain and calm. If you are unsure, say so and recommend verifying through a known official channel. Never tell the user something is definitely safe.
+
+Reply in the same language as the message the user pasted. Keep the RISK, RED FLAGS and WHAT TO DO headings, translated if needed.</span><button class="copy" type="button">Copy</button></div>
+          </details>
+        </li>
+
+        <li>
+          <h3>Check a real message, then tell us how it went</h3>
+          <p>Paste in something suspicious you've actually received. Remove anyone's personal details first if you'll share the example with us. Then fill in the two-minute feedback form.</p>
+          <p><a class="btn btn-primary" data-form href="#feedback">Give feedback</a></p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="story">
+    <div class="wrap">
+      <div class="col">
+        <h2>Why we built it</h2>
+        <p>H.E.R. DAO is a global community of over 2,000 independent builders in more than 20 hubs across Africa, Asia, Europe and the Americas. Many of them do social impact work in their own communities.</p>
+        <p class="hubs">Our hubs are in Nigeria, South Africa, Kenya, Tanzania, Uganda, Singapore, South Korea, Indonesia, India, Argentina, Colombia, Bolivia, Mexico, Venezuela, Chile, Peru, the UK, France, Germany and Spain, plus our first US city chapter in San Francisco.</p>
+        <p>As the community has grown, so have the attacks aimed at it: fake job interviews that ask builders to install malware, people impersonating funders and organisers, and links that ask you to "verify" an account or wallet. These hit hardest for people working alone, without a security team to ask.</p>
+        <p>One member got a message from someone they knew, an old acquaintance, asking them to book a call. On the call, several people they didn't know were waiting. They said they couldn't hear properly and sent a link to "download a new version of Zoom". The link was malicious. The contact's account had been taken over.</p>
+        <p>Cloud AI tools could help, but they'd ask builders to send the very messages they're worried about to a company's servers. So we went small and local instead.</p>
+      </div>
+      <ol class="path" aria-label="How Opsec Check came about">
+        <li><b>2020</b><span>Mozilla backs the Black Tech Task Force, our early work on algorithmic bias and AI ethics.</span></li>
+        <li><b>2021</b><span>That work grows into H.E.R. DAO, a global builder community.</span></li>
+        <li><b>Today</b><span>2,000+ builders in 20+ hubs, and a rising wave of targeted scams.</span></li>
+        <li><b>Opsec Check</b><span>Small, local AI shaped by the threats our members actually face.</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="progress">
+    <div class="wrap">
+      <div class="col">
+        <h2>Progress</h2>
+        <p class="intro">We're in an early pilot. This log is updated as we go, including when things don't work.</p>
+      </div>
+      <ol class="log">
+        <li><time datetime="2026-11">Nov 2026</time><ul>
+          <li>Prototype running locally on a laptop: a 2-billion-parameter open model with no cloud and no API.</li>
+          <li>Pilot opened to H.E.R. DAO builders, and testing against real scam messages begins.</li>
+          <li>Experimental browser version added, so members can try it with no install. It runs the same model, compressed, inside the browser. It isn't yet reliable on every laptop, especially older ones with built-in graphics.</li>
+          <li>Accessibility: results can be read aloud by the device's own voice, and Opsec Check now replies in the language the message was written in.</li>
+          <li>New threat pattern added from a member's real incident: fake meeting-software updates sent during a call, from a contact whose account had been hacked.</li>
+        </ul></li>
+        <li class="next"><time>Next</time><ul><li>Publish test results, including what it misses.</li></ul></li>
+      </ol>
+
+      <div id="quotes-block" hidden>
+        <h3>What testers say</h3>
+        <div class="quotes" id="quotes"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="principles">
+    <div class="wrap">
+      <h2>How it works, and who's in control</h2>
+      <div class="facts">
+        <div><h3>Runs on your device</h3><p>The model runs on your own computer. There's no server, no account and no tracking. It works offline.</p></div>
+        <div><h3>Small on purpose</h3><p>A 2-billion-parameter model is enough for one focused job: spotting known patterns of deception in a message.</p></div>
+        <div><h3>No surprise changes</h3><p>Every version is a fixed file with a published checksum. Nothing updates automatically, and you can keep any version you trust.</p></div>
+        <div><h3>Shaped by the community</h3><p>The threats it looks for come from what our members report. Before each release, updates will be reviewed by the community.</p></div>
+        <div><h3>Open source</h3><p>Built on Qwen3.5-2B and Mozilla.ai's llamafile, both Apache 2.0. Our instructions and threat patterns are open for anyone to adapt.</p></div>
+        <div><h3>Honest about limits</h3><p>It can be wrong, so it never says a message is definitely safe. When in doubt, it tells you to check through a channel you already trust.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="feedback" class="feedback">
+    <div class="wrap">
+      <div class="col">
+        <h2>Tried it? Tell us how it went</h2>
+        <p>Two minutes, and it shapes what Opsec Check learns next. We'll only quote you with your permission.</p>
+        <p><a class="btn btn-primary" data-form href="#feedback">Open the feedback form</a></p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap">
+  <p>Opsec Check is a project of <a href="https://her-dao.xyz">H.E.R. DAO</a>. Contact: <a href="mailto:contact@her-dao.xyz">contact@her-dao.xyz</a> · <a href="https://x.com/_HerDAO">@_HerDAO</a></p>
+  <p>This page sets no cookies and uses no analytics.</p>
+</footer>
+
+<script>
+  // Feedback form link: set once the Tally form is published.
+  const FEEDBACK_URL = "https://tally.so/r/zEM6OE";
+
+  // Real tester quotes only, added with permission. Leave empty until then.
+  // Example shape: { text: "...", who: "First name, role, hub" }
+  const QUOTES = [];
+
+  document.querySelectorAll("[data-form]").forEach(a => {
+    if (FEEDBACK_URL) { a.href = FEEDBACK_URL; a.target = "_blank"; a.rel = "noopener"; }
+  });
+
+  if (QUOTES.length) {
+    const box = document.getElementById("quotes");
+    QUOTES.forEach(q => {
+      const f = document.createElement("figure");
+      const b = document.createElement("blockquote"); b.textContent = "“" + q.text + "”";
+      const c = document.createElement("figcaption"); c.textContent = q.who;
+      f.append(b, c); box.append(f);
+    });
+    document.getElementById("quotes-block").hidden = false;
+  }
+
+  document.querySelectorAll(".copy").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const text = btn.parentElement.querySelector("[data-copy]").textContent;
+      try { await navigator.clipboard.writeText(text); btn.textContent = "Copied"; }
+      catch (e) { btn.textContent = "Select and copy"; }
+      setTimeout(() => { btn.textContent = "Copy"; }, 1800);
+    });
+  });
+</script>
+</body>
+</html>
