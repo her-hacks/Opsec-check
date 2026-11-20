@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Check a message in your browser | Opsec Check</title>
+<meta name="description" content="Check a suspicious message for scams and impersonation, privately, with a small AI model that runs inside your browser.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@112,600;125,800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #17212E; --ink-soft: #4A5566; --paper: #F3F5F8; --white: #FFFFFF;
+    --tint: #2E4F86; --tint-faint: #DCE3EE; --mark: #FFE15A; --alert: #B8322A;
+    --display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+    --body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 400 1.0625rem/1.6 var(--body); }
+  a { color: var(--tint); text-underline-offset: 0.18em; }
+  :focus-visible { outline: 3px solid var(--tint); outline-offset: 3px; border-radius: 2px; }
+  .wrap { width: min(820px, 100% - 2.5rem); margin-inline: auto; }
+  .bar { display: flex; justify-content: space-between; align-items: center; padding: 1.1rem 0; }
+  .wordmark { font: 800 1.15rem/1 var(--display); font-stretch: 125%; text-decoration: none; color: var(--ink); }
+  .bar a.back { font-size: 0.95rem; color: var(--ink-soft); }
+  h1 { font: 800 clamp(2rem, 4.5vw, 3rem)/1.02 var(--display); font-stretch: 125%; letter-spacing: -0.02em; margin: 2.2rem 0 0.9rem; }
+  .beta { display: inline-block; background: #FFF4CC; border: 1px solid #E8D27A; border-radius: 6px; padding: 0.45rem 0.75rem; font-size: 0.95rem; margin: 0 0 1rem; }
+  .lede { font-size: 1.15rem; color: var(--ink-soft); margin: 0 0 1.8rem; max-width: 60ch; }
+
+  .panel { background: var(--white); border: 1px solid #CDD5E1; border-radius: 12px; padding: 1.4rem; margin-bottom: 1.25rem; }
+  .panel h2 { font: 600 1.2rem/1.3 var(--display); font-stretch: 112%; margin: 0 0 0.5rem; }
+  .panel p { margin: 0 0 0.8rem; }
+  .panel p:last-child { margin-bottom: 0; }
+  .muted { color: var(--ink-soft); font-size: 0.95rem; }
+
+  .btn { display: inline-block; padding: 0.85rem 1.3rem; border-radius: 6px; font: 700 1rem/1 var(--body); border: 2px solid var(--ink); background: var(--ink); color: var(--white); cursor: pointer; }
+  .btn:hover:not(:disabled) { background: var(--tint); border-color: var(--tint); }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-quiet { background: var(--white); color: var(--ink); }
+  .btn-quiet:hover:not(:disabled) { background: var(--paper); color: var(--ink); border-color: var(--ink); }
+
+  .meter { height: 10px; background: var(--tint-faint); border-radius: 5px; overflow: hidden; margin: 0.9rem 0 0.5rem; }
+  .meter > div { height: 100%; width: 0%; background: var(--tint); transition: width 0.3s; }
+  #load-status { font-size: 0.92rem; color: var(--ink-soft); min-height: 1.4em; }
+
+  .warn { border-left: 4px solid var(--alert); background: #FBEFED; padding: 0.9rem 1.1rem; border-radius: 0 8px 8px 0; }
+  .warn h2 { margin-bottom: 0.3rem; }
+
+  label { display: block; font-weight: 700; margin-bottom: 0.4rem; }
+  textarea { width: 100%; min-height: 11rem; resize: vertical; padding: 0.85rem; border: 1px solid #B9C3D2; border-radius: 8px; font: 1rem/1.55 var(--body); color: var(--ink); background: var(--white); }
+  .row { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin-top: 0.8rem; }
+
+  .result { white-space: pre-wrap; background: var(--ink); color: var(--white); border-radius: 10px; padding: 1.25rem 1.35rem; font-size: 1rem; line-height: 1.6; min-height: 4rem; }
+  .result .risk-high { color: #FF8A7F; font-weight: 700; }
+  .result .risk-medium { color: #FFD166; font-weight: 700; }
+  .result .risk-low { color: #8FD3A8; font-weight: 700; }
+  .result .head { color: #AEB8C7; font-weight: 700; }
+
+  .counter { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+  .counter strong { font: 800 1.6rem/1 var(--display); font-stretch: 112%; }
+  footer { padding: 2rem 0 3rem; font-size: 0.9rem; color: var(--ink-soft); }
+  [hidden] { display: none !important; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+</style>
+</head>
+<body>
+<header class="wrap bar">
+  <a class="wordmark" href="index.html">Opsec Check</a>
+  <a class="back" href="index.html">About the project</a>
+</header>
+
+<main class="wrap">
+  <h1>Check a message in your browser</h1>
+  <p class="beta">Experimental. This version doesn't work reliably on every laptop yet. If it fails, use the <a href="index.html#try">desktop version</a>.</p>
+  <p class="lede">No install. The model downloads into this browser once, then runs on your own device. Messages you paste here are never sent anywhere.</p>
+
+  <div class="panel warn" id="no-webgpu" hidden>
+    <h2>This browser can't run Opsec Check</h2>
+    <p>It needs WebGPU, which works in recent Chrome or Edge on a laptop or desktop. Try one of those, or <a href="index.html#try">install the desktop version</a> instead.</p>
+  </div>
+
+  <div class="panel" id="load-panel">
+    <h2>Load the model (one time)</h2>
+    <p>This downloads about 1 GB into your browser: a compressed 4-bit version of Qwen3.5-2B, the same open model as the desktop version. It takes a few minutes on a good connection. After that it loads from your browser in seconds and works offline.</p>
+    <p class="muted">Best on a laptop with 8 GB of memory or more. Phones and older machines may struggle.</p>
+    <button class="btn" id="load-btn" type="button">Load Opsec Check</button>
+    <div id="progress" hidden>
+      <div class="meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="meter"><div id="meter-fill"></div></div>
+      <div id="load-status" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="check-panel" hidden>
+    <label for="msg">Paste the message, job offer, DM, email or link</label>
+    <textarea id="msg" placeholder="Paste something you've received that feels off."></textarea>
+    <div class="row">
+      <button class="btn" id="check-btn" type="button">Check this message</button>
+      <button class="btn btn-quiet" id="clear-btn" type="button">Clear</button>
+      <span class="muted" id="check-status" aria-live="polite"></span>
+    </div>
+  </div>
+
+  <div id="result-wrap" hidden>
+    <h2 class="sr-only" id="result-heading" tabindex="-1">Result</h2>
+    <div class="result" id="result" aria-live="polite"></div>
+    <div class="row" id="listen-row" hidden>
+      <button class="btn btn-quiet" id="listen-btn" type="button">Listen to the result</button>
+      <span class="muted" id="listen-note">Read aloud by your device's own voice. Nothing is sent anywhere.</span>
+    </div>
+    <p class="muted">Opsec Check can be wrong. It never says a message is definitely safe. If in doubt, check through a channel you already trust.</p>
+  </div>
+
+  <div class="panel counter" id="counter-panel" hidden>
+    <div>
+      <div class="muted">Messages you've checked on this device</div>
+      <strong id="count">0</strong>
+    </div>
+    <div>
+      <p class="muted" style="max-width:34ch">This count stays in your browser. Share it in the feedback form if you're happy to.</p>
+      <a class="btn btn-quiet" data-form href="index.html#feedback">Give feedback</a>
+    </div>
+  </div>
+</main>
+
+<footer class="wrap">
+  <p>Runs with <a href="https://github.com/mlc-ai/web-llm">WebLLM</a> (Apache 2.0) and Qwen3.5-2B (Apache 2.0). This page sets no cookies and uses no analytics. The model files are cached by your browser; clear this site's data to remove them.</p>
+</footer>
+
+<script type="module">
+  // Feedback form link: set once the Tally form is published.
+  const FEEDBACK_URL = "https://tally.so/r/zEM6OE";
+  const MODEL_ID = "Qwen3.5-2B-q4f16_1-MLC";
+  const MODEL_ID_F32 = "Qwen3.5-2B-q4f32_1-MLC";
+  const SYSTEM_MESSAGE = `You are Opsec Check, a security assistant for independent builders and community organisers. You run entirely on the user's own device; nothing they paste leaves their computer.
+
+The user will paste a message, job offer, DM, email or link they received. Assess it for scams, impersonation and security risks. Common threats in this community include:
+- Fake job interviews or "take-home tests" that ask you to download or run software
+- Impersonators posing as known community members, funders, event organisers or platform staff
+- Links asking you to "connect", "verify" or "sign in" to an account or wallet
+- Unexpected meeting invites from someone you know or used to know, whose account may have been hacked
+- Requests before or during a call to download or "update" Zoom, Teams or other meeting software from a link they send
+- Urgent requests for money, codes, passwords or recovery phrases
+
+Reply in this format:
+RISK: Low / Medium / High
+RED FLAGS: short bullet points quoting the suspicious parts
+WHAT TO DO: 2-4 concrete steps (e.g. verify through an official channel you already use, don't download anything, report to community moderators)
+
+Be plain and calm. If you are unsure, say so and recommend verifying through a known official channel. Never tell the user something is definitely safe.
+
+Reply in the same language as the message the user pasted. Keep the RISK, RED FLAGS and WHAT TO DO headings, translated if needed.`;
+
+  const $ = id => document.getElementById(id);
+  document.querySelectorAll("[data-form]").forEach(a => {
+    if (FEEDBACK_URL) { a.href = FEEDBACK_URL; a.target = "_blank"; a.rel = "noopener"; }
+  });
+
+  // On-device counter (never sent anywhere)
+  const KEY = "opsec-check-count";
+  function readCount() { try { return parseInt(localStorage.getItem(KEY) || "0", 10) || 0; } catch (e) { return null; } }
+  function bumpCount() {
+    let n = readCount();
+    if (n === null) { sessionCount++; n = sessionCount; }
+    else { n++; try { localStorage.setItem(KEY, String(n)); } catch (e) {} }
+    $("count").textContent = n;
+  }
+  let sessionCount = 0;
+  function showCounter() { const n = readCount(); $("count").textContent = n === null ? 0 : n; $("counter-panel").hidden = false; }
+
+  if (!("gpu" in navigator)) {
+    $("no-webgpu").hidden = false;
+    $("load-btn").disabled = true;
+  }
+
+  let engine = null;
+  let webllm = null;
+  let modelId = MODEL_ID;
+
+  async function makeEngine(onProgress) {
+    if (!webllm) webllm = await import("https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.89/+esm");
+    return webllm.CreateMLCEngine(modelId, onProgress ? { initProgressCallback: onProgress } : {});
+  }
+  async function freshEngine() {
+    if (engine) { try { await engine.unload(); } catch (e) {} }
+    engine = null;
+    engine = await makeEngine();
+  }
+
+  $("load-btn").addEventListener("click", async () => {
+    $("load-btn").disabled = true;
+    $("progress").hidden = false;
+    $("load-status").textContent = "Preparing the download. It can take up to a minute before the bar starts moving.";
+    try {
+      // Some graphics chips lack 16-bit support; fall back to the 32-bit build of the same model.
+      try {
+        const adapter = await navigator.gpu.requestAdapter();
+        if (adapter && !adapter.features.has("shader-f16")) modelId = MODEL_ID_F32;
+      } catch (e) {}
+      engine = await makeEngine((r) => {
+        const pct = Math.round((r.progress || 0) * 100);
+        $("meter-fill").style.width = pct + "%";
+        $("meter").setAttribute("aria-valuenow", String(pct));
+        $("load-status").textContent = r.text || (pct + "%");
+      });
+      $("load-panel").hidden = true;
+      $("check-panel").hidden = false;
+      showCounter();
+      $("msg").focus();
+    } catch (err) {
+      console.error(err);
+      $("load-btn").disabled = false;
+      $("load-btn").textContent = "Try loading again";
+      $("load-status").textContent = "Couldn't load the model: " + (err && err.message ? err.message : err) +
+        ". Check your connection and that you're using recent Chrome or Edge on a laptop, then try again.";
+    }
+  });
+
+  function render(text) {
+    const out = $("result");
+    out.textContent = "";
+    text.split("\n").forEach((line, i) => {
+      if (i) out.append("\n");
+      const m = line.match(/^(\s*\**\s*RISK:?\**\s*)(High|Medium|Low)(.*)$/i);
+      if (m) {
+        const s = document.createElement("span");
+        s.className = "risk-" + m[2].toLowerCase();
+        s.textContent = line.replace(/\*\*/g, "");
+        out.append(s);
+      } else if (/^\s*\**\s*(RED FLAGS|WHAT TO DO):?/i.test(line)) {
+        const s = document.createElement("span"); s.className = "head"; s.textContent = line.replace(/\*\*/g, ""); out.append(s);
+      } else {
+        out.append(line.replace(/\*\*/g, ""));
+      }
+    });
+  }
+
+  async function runCheck(text) {
+    const r = await engine.chat.completions.create({
+      messages: [{ role: "system", content: SYSTEM_MESSAGE }, { role: "user", content: text }],
+      temperature: 0.2, max_tokens: 500,
+      extra_body: { enable_thinking: false },
+    });
+    return (r.choices[0].message.content || "").replace(/<think>[\s\S]*?<\/think>\s*/g, "").trim();
+  }
+
+  $("check-btn").addEventListener("click", async () => {
+    const text = $("msg").value.trim();
+    if (!text) { $("check-status").textContent = "Paste a message first."; return; }
+    $("check-btn").disabled = true;
+    $("check-status").textContent = "Checking on your device. This usually takes under a minute.";
+    $("result-wrap").hidden = true;
+    $("result").textContent = "";
+    let answer = null;
+    for (let attempt = 1; attempt <= 2 && answer === null; attempt++) {
+      try {
+        if (!engine) await freshEngine();
+        answer = await runCheck(text);
+      } catch (err) {
+        console.error(err);
+        if (attempt === 1) {
+          $("check-status").textContent = "Restarting the model and trying again…";
+          try { await freshEngine(); } catch (e) { console.error(e); }
+        }
+      }
+    }
+    if (answer) {
+      $("result-wrap").hidden = false;
+      render(answer);
+      lastAnswer = answer;
+      setupListen();
+      $("result-heading").focus();
+      bumpCount();
+      $("check-status").textContent = "Getting ready for your next message…";
+      // A fresh engine for each check avoids a known reset problem with this model in the browser.
+      try { await freshEngine(); $("check-status").textContent = ""; }
+      catch (e) { console.error(e); engine = null; $("check-status").textContent = ""; }
+    } else {
+      $("check-status").textContent = "This laptop's graphics chip couldn't run the check. Try reloading the page, " +
+        "or use the desktop version, which works on any recent Mac, Windows or Linux laptop.";
+      engine = null;
+    }
+    $("check-btn").disabled = false;
+  });
+
+  let lastAnswer = "";
+  function localVoice() {
+    if (!("speechSynthesis" in window)) return null;
+    const voices = speechSynthesis.getVoices().filter(v => v.localService);
+    if (!voices.length) return null;
+    const lang = (document.documentElement.lang || "en").slice(0, 2);
+    return voices.find(v => v.lang && v.lang.startsWith(lang) && v.default) || voices.find(v => v.default) || voices[0];
+  }
+  function setupListen() {
+    const ok = !!localVoice();
+    $("listen-row").hidden = !ok;
+    $("listen-btn").textContent = "Listen to the result";
+  }
+  if ("speechSynthesis" in window) speechSynthesis.onvoiceschanged = () => { if (lastAnswer) setupListen(); };
+  $("listen-btn").addEventListener("click", () => {
+    if (speechSynthesis.speaking) { speechSynthesis.cancel(); $("listen-btn").textContent = "Listen to the result"; return; }
+    const v = localVoice(); if (!v || !lastAnswer) return;
+    const u = new SpeechSynthesisUtterance(lastAnswer.replace(/[`*_#]/g, "").replace(/\[\.\]/g, " dot "));
+    u.voice = v; u.rate = 0.95;
+    u.onend = () => { $("listen-btn").textContent = "Listen to the result"; };
+    $("listen-btn").textContent = "Stop reading";
+    speechSynthesis.speak(u);
+  });
+
+  $("clear-btn").addEventListener("click", () => {
+    if ("speechSynthesis" in window) speechSynthesis.cancel();
+    $("listen-row").hidden = true; lastAnswer = "";
+    $("msg").value = ""; $("result").textContent = ""; $("result-wrap").hidden = true; $("check-status").textContent = ""; $("msg").focus();
+  });
+</script>
+</body>
+</html>
