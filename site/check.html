@@ -76,7 +76,7 @@
 
   <div class="panel warn" id="no-webgpu" hidden>
     <h2>This browser can't run Opsec Check</h2>
-    <p>It needs WebGPU, which works in recent Chrome or Edge on a laptop or desktop. Try one of those, or <a href="index.html#try">install the desktop version</a> instead.</p>
+    <p id="no-webgpu-why">It needs WebGPU, which works in recent Chrome or Edge on a laptop or desktop. Try one of those, or <a href="index.html#try">install the desktop version</a> instead.</p>
   </div>
 
   <div class="panel" id="load-panel">
@@ -167,9 +167,25 @@ Reply in the same language as the message the user pasted. Keep the RISK, RED FL
   let sessionCount = 0;
   function showCounter() { const n = readCount(); $("count").textContent = n === null ? 0 : n; $("counter-panel").hidden = false; }
 
-  if (!("gpu" in navigator)) {
+  function noWebGPU(why) {
+    if (why) $("no-webgpu-why").innerHTML = why;
     $("no-webgpu").hidden = false;
     $("load-btn").disabled = true;
+  }
+  const UA = navigator.userAgent || "";
+  const IS_IOS = /iPhone|iPad|iPod/.test(UA) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const IS_ANDROID = /Android/.test(UA);
+  const IN_APP = /FBAN|FBAV|Instagram|Line\/|WhatsApp|Telegram|Twitter|LinkedInApp|; wv\)/.test(UA);
+  const DESKTOP_LINK = '<a href="index.html#try">desktop version</a>';
+  const WHY_PHONE = "Phones can't run the in-browser version yet. Open this page on a laptop or desktop in Chrome or Edge, or use the " + DESKTOP_LINK + ".";
+  const WHY_IN_APP = "This page has opened inside another app's built-in browser, which can't run it. Copy the link and open it in Chrome or Edge on a laptop or desktop.";
+  const WHY_DESKTOP = "Your browser has WebGPU switched off or unavailable. Update Chrome or Edge to the latest version, and check Settings &gt; System &gt; \"Use graphics acceleration when available\" is on, then restart the browser. If it still shows this message, use the " + DESKTOP_LINK + ".";
+  if (!("gpu" in navigator)) {
+    noWebGPU(IN_APP ? WHY_IN_APP : (IS_IOS || IS_ANDROID) ? WHY_PHONE : WHY_DESKTOP);
+  } else if (IS_IOS || IS_ANDROID) {
+    noWebGPU(IN_APP ? WHY_IN_APP : WHY_PHONE);
+  } else {
+    navigator.gpu.requestAdapter().then((a) => { if (!a) noWebGPU(WHY_DESKTOP); }).catch(() => noWebGPU(WHY_DESKTOP));
   }
 
   let engine = null;
